@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Динамика скважин</title>
+<link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"Динамика скважин","short_name":"Динамика","start_url":".","display":"standalone","background_color":"%230d1117","theme_color":"%230d1117","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png"}]}'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--elev:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#7d8590;--dim:#484f58;
+  --accent:#58a6ff;--accent-soft:rgba(88,166,255,.12);
+  --green:#3fb950;--amber:#d29922;--red:#f85149;
+  --green-soft:rgba(63,185,80,.12);--amber-soft:rgba(210,153,34,.12);--red-soft:rgba(248,81,73,.12);
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:'Manrope',system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom,0)}
+
+header{position:sticky;top:0;z-index:50;background:rgba(13,17,23,.92);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px}
+header h1{font-size:15px;font-weight:700;letter-spacing:-.01em;flex:1;display:flex;align-items:center;gap:8px}
+header h1 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+.btn{background:var(--elev);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--border);border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn-icon{width:38px;height:38px;padding:0;justify-content:center;font-size:16px}
+
+main{max-width:1400px;margin:0 auto;padding:16px}
+
+.status-bar{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);margin-bottom:16px;flex-wrap:wrap}
+.status-bar .pill{background:var(--elev);padding:3px 8px;border-radius:4px;font-family:var(--mono);color:var(--text)}
+.status-bar .ok{color:var(--green)}
+.status-bar .err{color:var(--red)}
+
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:16px;width:fit-content}
+.tab{padding:8px 16px;border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted);transition:all .15s;border:none;background:transparent;font-family:inherit}
+.tab.active{background:var(--elev);color:var(--text)}
+.tab:hover:not(.active){color:var(--text)}
+
+.screen{display:none}
+.screen.active{display:block}
+
+/* ============ Empty state ============ */
+.empty{text-align:center;padding:60px 20px;color:var(--muted);background:var(--surface);border:1px dashed var(--border);border-radius:12px}
+.empty .ico{font-size:42px;margin-bottom:12px;opacity:.5}
+.empty h2{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+
+/* ============ Сводка ============ */
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 0 10px;display:flex;align-items:center;gap:8px}
+.section-title:first-child{margin-top:0}
+.section-title .count{background:var(--elev);padding:2px 7px;border-radius:4px;font-family:var(--mono);font-size:11px;letter-spacing:0}
+
+.mode-toggle{display:flex;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content;margin-bottom:16px}
+.mode-toggle button{padding:8px 14px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;transition:all .15s}
+.mode-toggle button.active{background:var(--elev);color:var(--text)}
+
+.obj-selector{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.obj-chip{background:var(--surface);border:1px solid var(--border);padding:5px 10px;border-radius:14px;cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s;font-weight:500}
+.obj-chip.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.obj-chip:hover:not(.active){color:var(--text);border-color:var(--muted)}
+
+.year-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:20px}
+.year-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .15s}
+.year-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.year-card.active{background:var(--accent-soft);border-color:var(--accent)}
+.year-card .yr{font-family:var(--mono);font-size:18px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.year-card .metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.year-card .m{font-size:11px;color:var(--muted)}
+.year-card .v{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text)}
+.year-card .trend{font-size:10px;font-family:var(--mono);font-weight:600}
+.year-card .trend.up{color:var(--green)}
+.year-card .trend.dn{color:var(--red)}
+
+.month-detail{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+.month-detail h3{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.month-detail h3 .label{color:var(--accent)}
+.month-table{width:100%;border-collapse:collapse;font-size:12px}
+.month-table th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:8px 6px;border-bottom:1px solid var(--border)}
+.month-table td{padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--mono)}
+.month-table tr:last-child td{border-bottom:none}
+
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;position:relative}
+.chart-box h3{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+.chart-wrap{position:relative;height:260px}
+
+.reco-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;border-left:3px solid var(--accent)}
+.reco-box h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:8px}
+.reco-box ul{list-style:none}
+.reco-box li{padding:4px 0;font-size:13px;color:var(--text);display:flex;align-items:flex-start;gap:8px}
+.reco-box li::before{content:'›';color:var(--accent);font-weight:700;margin-right:0}
+
+/* ============ Снижающие ============ */
+.controls-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+.controls-bar select,.controls-bar input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-family:inherit;font-size:13px}
+.controls-bar select:focus,.controls-bar input:focus{outline:none;border-color:var(--accent)}
+.controls-bar label{font-size:12px;color:var(--muted);font-weight:600}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px}
+.stat-card .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:4px}
+.stat-card .v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text)}
+.stat-card .v.red{color:var(--red)}
+.stat-card .v.green{color:var(--green)}
+.stat-card .v.amber{color:var(--amber)}
+
+.well-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+.well-card:hover{border-color:var(--accent)}
+.well-card.open{border-color:var(--accent);background:var(--accent-soft)}
+.well-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.well-id{font-family:var(--mono);font-weight:700;font-size:14px;min-width:80px}
+.well-meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.well-meta .tag{background:var(--elev);padding:2px 7px;border-radius:4px;font-size:11px}
+.well-stats{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-family:var(--mono);font-size:12px}
+.well-stats .s{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
+.well-stats .s small{font-size:10px;color:var(--muted);font-family:'Manrope',sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.well-stats .red{color:var(--red);font-weight:700}
+.well-stats .green{color:var(--green)}
+
+.causes{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.cause{font-size:10px;padding:3px 8px;border-radius:10px;font-weight:600}
+.cause-mech{background:rgba(248,81,73,.16);color:#ff8074}
+.cause-asphalt{background:rgba(210,153,34,.16);color:#ffcc66}
+.cause-mode{background:rgba(88,166,255,.16);color:#79c0ff}
+.cause-power{background:rgba(187,128,255,.16);color:#d2a8ff}
+.cause-water{background:rgba(64,170,191,.16);color:#7ce0e7}
+.cause-press{background:rgba(255,123,0,.18);color:#ffa657}
+.cause-wo{background:rgba(63,185,80,.16);color:#7ee787}
+.cause-other{background:rgba(125,133,144,.16);color:#a8b3bd}
+
+.well-expand{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:none}
+.well-card.open .well-expand{display:block}
+.expand-row{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:768px){.expand-row{grid-template-columns:1fr}}
+.expand-chart{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;height:200px;position:relative}
+.expand-info{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px}
+.expand-info dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-top:6px}
+.expand-info dt:first-child{margin-top:0}
+.expand-info dd{font-family:var(--mono);font-size:13px;color:var(--text);margin-top:2px}
+.events-list{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--muted);font-family:var(--mono);max-height:120px;overflow-y:auto}
+.events-list span{display:inline-block;background:var(--elev);padding:1px 6px;border-radius:3px;margin:2px 3px 2px 0;color:var(--text)}
+.reco-inline{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:10px 12px;margin-top:10px;font-size:13px}
+.reco-inline strong{color:var(--green);display:block;margin-bottom:4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+
+footer{text-align:center;padding:24px 16px 32px;color:var(--dim);font-size:12px}
+footer a{color:var(--muted);margin:0 8px;cursor:pointer;text-decoration:none}
+footer a:hover{color:var(--accent)}
+
+.loading-overlay{position:fixed;inset:0;background:rgba(13,17,23,.92);display:none;align-items:center;justify-content:center;z-index:100;font-size:14px;color:var(--text)}
+.loading-overlay.active{display:flex;flex-direction:column;gap:14px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){
+  header h1{font-size:14px}
+  .year-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  .well-stats{margin-left:0;width:100%;justify-content:space-between}
+  .well-id{min-width:auto}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span>Динамика скважин <span style="color:var(--muted);font-weight:500;font-size:11px;margin-left:6px">KBM</span></h1>
+  <button class="btn primary btn-icon" id="btnLoad" title="Загрузить xlsx">📂</button>
+  <button class="btn btn-icon" id="btnReload" title="Перезагрузить">↻</button>
+  <input type="file" id="fileInput" hidden accept=".xlsx,.xlsm,.xls">
+</header>
+
+<main>
+  <div class="status-bar" id="statusBar">
+    <span id="statusText">Файл не загружен. Нажмите 📂 → выберите xlsx</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-screen="summary">Сводка</button>
+    <button class="tab" data-screen="decline">Снижающие</button>
+  </div>
+
+  <section id="screen-summary" class="screen active">
+    <div id="summaryContent">
+      <div class="empty">
+        <div class="ico">📊</div>
+        <h2>Сводка по добыче</h2>
+        <p>Загрузите xlsx — увидите среднегодовые Qж / Qн / % / Ндин и рекомендации.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-decline" class="screen">
+    <div id="declineContent">
+      <div class="empty">
+        <div class="ico">📉</div>
+        <h2>Снижающие скважины</h2>
+        <p>Топ-100 по потерянной нефти (т/сут) с автоматической диагностикой причин и рекомендациями.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a id="clearCache">Очистить кэш</a>
+  <span>·</span>
+  <span>v1.0</span>
+</footer>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div id="loadingText">Парсинг файла...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
+<script>
+'use strict';
+
+// ============ STATE ============
+const state = {
+  summary: null,      // {dates:[], series:{ general:[[qj,qn,wc,nd]...], byObj:{name:[...]}}}
+  decline: null,      // {wells:[...]}
+  meta: null,         // {fileName, parsedAt, size}
+};
+
+const OBJECTS = [
+  {name:'Общий', col:1},
+  {name:'12 ввг', col:6},
+  {name:'12А ввг', col:10},
+  {name:'33 птв', col:14},
+  {name:'34 птв', col:18},
+  {name:'16 птв', col:22},
+  {name:'27 птв', col:26},
+  {name:'30 птв', col:30},
+  {name:'30А птв', col:34},
+  {name:'31 птв', col:38},
+  {name:'32 птв', col:42},
+];
+// Each object block: [Qж, Qн, %, Ндин] starting at col
+
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MONTHS_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+// ============ ELEMENTS ============
+const $ = id => document.getElementById(id);
+const fileInput = $('fileInput');
+const btnLoad = $('btnLoad');
+const btnReload = $('btnReload');
+const statusText = $('statusText');
+const loading = $('loading');
+const loadingText = $('loadingText');
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    $('screen-' + t.dataset.screen).classList.add('active');
+  };
+});
+
+// ============ FILE HANDLING ============
+btnLoad.onclick = () => fileInput.click();
+btnReload.onclick = () => location.reload();
+$('clearCache').onclick = () => {
+  if (confirm('Удалить кэшированные данные?')) {
+    localStorage.removeItem('kbm-din-cache');
+    location.reload();
+  }
+};
+
+fileInput.onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  showLoading('Чтение файла...');
+  try {
+    const buf = await f.arrayBuffer();
+    showLoading('Парсинг xlsx...');
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    await processWorkbook(wb, f.name);
+    saveCache();
+    renderAll();
+    statusText.innerHTML = `<span class="ok">●</span> Файл: <span class="pill">${f.name}</span> Скв: <span class="pill">${state.decline?.wells?.length || 0}</span> Записей: <span class="pill">${state.summary?.dates?.length || 0}</span>`;
+  } catch (err) {
+    console.error(err);
+    statusText.innerHTML = `<span class="err">●</span> Ошибка: ${err.message}`;
+    alert('Ошибка обработки файла:\n' + err.message);
+  } finally {
+    hideLoading();
+    fileInput.value = '';
+  }
+};
+
+function showLoading(msg) { loadingText.textContent = msg; loading.classList.add('active'); }
+function hideLoading() { loading.classList.remove('active'); }
+
+// ============ AP PARSER ============
+const AP_MONTHS = ['Я','Ф','М','А','М','И','И','А','С','О','Н','Д'];
+
+function parseAP(s) {
+  if (!s || typeof s !== 'string') return [];
+  // Replace "буква.число" → "буква,число" (М.1 → М,1)
+  s = s.replace(/([ЯФМАИСОНД])\.(\d)/g, '$1,$2');
+  const tokens = s.split(',').map(t => t.trim()).filter(Boolean);
+  // Smart merge "X=N" + "M" → "X=N.M"
+  const merged = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const nxt = tokens[i+1];
+    if (t.includes('=') && /=\d+$/.test(t) && nxt && /^\d{1,2}$/.test(nxt)) {
+      merged.push(t + '.' + nxt);
+      i++;
+    } else {
+      merged.push(t);
+    }
+  }
+  let year = null, monthIdx = -1, day = 0;
+  const out = [];
+  for (const tok of merged) {
+    // Year
+    if (/^\d{4}г?$/.test(tok)) {
+      year = parseInt(tok.slice(0,4));
+      monthIdx = -1; day = 0;
+      continue;
+    }
+    // Single-letter month
+    if (tok.length === 1 && AP_MONTHS.includes(tok)) {
+      let next = -1;
+      for (let i2 = Math.max(0, monthIdx + 1); i2 < 12; i2++) {
+        if (AP_MONTHS[i2] === tok) { next = i2; break; }
+      }
+      if (next === -1) next = AP_MONTHS.indexOf(tok);
+      monthIdx = next; day = 0;
+      continue;
+    }
+    // Pure number
+    if (/^\d+([.,]\d+)?$/.test(tok)) {
+      const v = parseFloat(tok.replace(',', '.'));
+      if (!isNaN(v) && v < 500) {
+        day++;
+        out.push({year, month: monthIdx + 1, day, qz: v, evts: []});
+        continue;
+      }
+    }
+    // Event
+    if (out.length > 0) {
+      out[out.length-1].evts.push(tok);
+    } else {
+      out.push({year, month: monthIdx + 1, day, qz: null, evts: [tok]});
+    }
+  }
+  return out;
+}
+
+// ============ PROCESSING ============
+async function processWorkbook(wb, fileName) {
+  await new Promise(r => setTimeout(r, 30));
+  showLoading('Обработка «Сводной таблицы»...');
+  const svodka = wb.Sheets['Сводная таблица'];
+  if (!svodka) throw new Error('Лист «Сводная таблица» не найден');
+  const sRows = XLSX.utils.sheet_to_json(svodka, {header:1, raw:true, defval:null});
+  state.summary = parseSvodka(sRows);
+
+  await new Promise(r => setTimeout(r, 30));
+  showLoading('Обработка «TOTAL WELLS»...');
+  const total = wb.Sheets['TOTAL WELLS'];
+  if (!total) throw new Error('Лист «TOTAL WELLS» не найден');
+  const tRows = XLSX.utils.sheet_to_json(total, {header:1, raw:true, defval:null});
+
+  await new Promise(r => setTimeout(r, 30));
+  showLoading('Анализ снижающих скважин...');
+  state.decline = analyzeDecline(tRows);
+
+  state.meta = {fileName, parsedAt: Date.now()};
+}
+
+function parseSvodka(rows) {
+  // rows[0]=current values, rows[2]=object headers, rows[3]=param labels
+  // Data starts row 4
+  const dates = [];
+  const series = {}; // {objName: [[qj,qn,wc,nd], ...]}
+  OBJECTS.forEach(o => series[o.name] = []);
+
+  for (let r = 4; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row[0] === null || row[0] === undefined) continue;
+    let isoDate = null;
+    if (row[0] instanceof Date) isoDate = row[0];
+    else if (typeof row[0] === 'number') {
+      // Excel serial date: days since 1899-12-30
+      isoDate = new Date(Math.round((row[0] - 25569) * 86400 * 1000));
+    } else if (typeof row[0] === 'string') {
+      const dd = new Date(row[0]);
+      if (!isNaN(dd.getTime())) isoDate = dd;
+    }
+    if (!isoDate || isNaN(isoDate.getTime())) continue;
+    // Skip future dates that are all-null (e.g. 2026-12-31 placeholder)
+    const vGen = row[1];
+    if (vGen === null || vGen === undefined) continue;
+    dates.push(isoDate);
+    OBJECTS.forEach(o => {
+      const c = o.col;
+      const qj = num(row[c]);
+      const qn = num(row[c+1]);
+      const wc = num(row[c+2]);
+      const nd = num(row[c+3]);
+      series[o.name].push([qj, qn, wc, nd]);
+    });
+  }
+  return {dates, series};
+}
+
+function num(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+function isActive(status, qzCurr) {
+  if (!status || typeof status !== 'string') return false;
+  const s = status.toLowerCase().trim();
+  if (s === '0' || s === '') return false;
+  if (s.includes('бездейств') || s.includes('контрольн') || s.includes('обводн')) return false;
+  if (s === 'опрс' || s === 'прс' || s.startsWith('п.э')) return false;
+  if (!qzCurr || qzCurr <= 0) return false;
+  return true;
+}
+
+function analyzeDecline(rows) {
+  // header row 1 (idx=1), data from row 4 (idx=4)
+  const wells = [];
+  for (let r = 4; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row) continue;
+    const wellNum = row[3];
+    if (wellNum === null || wellNum === undefined || wellNum === '') continue;
+    const area = String(row[1] ?? '');
+    const status = String(row[4] ?? '');
+    const qzCurr = num(row[6]) ?? 0;
+    const qnCurr = num(row[7]) ?? 0;
+    const wc = num(row[8]) ?? 0;
+    const ndin = num(row[13]);
+    const horizon = String(row[21] ?? '');
+    const objCol = String(row[73] ?? '');
+    const obj = objCol || horizon || area;
+    const ap = row[41];
+    const am = row[38];  // % history
+    const aj = row[35];  // Ндин history
+    const lastWO = row[28]; // дата ПКРС
+    const pumpEff = num(row[27]);
+
+    if (!isActive(status, qzCurr)) continue;
+    if (!ap || typeof ap !== 'string' || !ap.trim()) continue;
+
+    const parsed = parseAP(ap);
+    const qz2026 = parsed.filter(p => p.year === 2026 && p.qz !== null).map(p => p.qz);
+    if (qz2026.length < 5) continue;
+
+    const peak = Math.max(...qz2026);
+    const last7 = qz2026.slice(-7);
+    const currAvg = last7.reduce((a,b) => a+b, 0) / last7.length;
+    const lostM3 = Math.max(0, peak - currAvg);
+    const lostOil = lostM3 * (1 - wc/100) * 0.85;
+    const pctOfPeak = peak > 0 ? (currAvg / peak) * 100 : 0;
+
+    // Recent trend
+    let trend = null;
+    if (qz2026.length >= 30) {
+      const half = Math.min(15, Math.floor(qz2026.length / 2));
+      const recent = qz2026.slice(-half);
+      const prior = qz2026.slice(-half*2, -half);
+      if (prior.length) {
+        const ra = recent.reduce((a,b)=>a+b,0)/recent.length;
+        const pa = prior.reduce((a,b)=>a+b,0)/prior.length;
+        trend = ra - pa;
+      }
+    }
+
+    // Recent events
+    const recentEvts = [];
+    parsed.slice(-60).forEach(p => {
+      if (p.evts && p.evts.length) recentEvts.push(...p.evts);
+      if (p.evt) recentEvts.push(p.evt);
+    });
+
+    // Classify causes
+    const causes = classifyCauses(recentEvts, parseHistArray(am), parseHistArray(aj), pumpEff, lastWO);
+
+    wells.push({
+      well: String(wellNum),
+      area, status, obj, horizon,
+      qzCurr, qnCurr, wc, ndin, pumpEff,
+      peak, currAvg, lostM3, lostOil, pctOfPeak,
+      trend,
+      qzSeries: qz2026,  // for chart
+      events: recentEvts.slice(-20),
+      causes,
+    });
+  }
+  wells.sort((a, b) => b.lostOil - a.lostOil);
+  return {wells};
+}
+
+// Parse history arrays like AM (%) or AJ (Ндин): tokens, last numbers
+function parseHistArray(s) {
+  if (!s || typeof s !== 'string') return [];
+  s = s.replace(/([ЯФМАИСОНД])\.(\d)/g, '$1,$2');
+  const tokens = s.split(',').map(t => t.trim()).filter(Boolean);
+  const nums = [];
+  for (const t of tokens) {
+    if (/^\d+([.,]\d+)?$/.test(t)) {
+      const v = parseFloat(t.replace(',', '.'));
+      if (!isNaN(v)) nums.push(v);
+    }
+  }
+  return nums;
+}
+
+const CAUSE_DEFS = [
+  {key:'mech', label:'⚙ Механика насоса', cls:'cause-mech',
+   rx:/проп\.?кл|гдм.?проп|заклин|снр|ост\.опрс|пес\.в\.нас|проп\.нкт|клапан|откач/i,
+   reco:'ГДМ, оценка износа клапанной пары. На ПКРС — замена клапанов, шаблонирование, проверка хода штока.'},
+  {key:'asphalt', label:'🛢 Парафин / АСПО', cls:'cause-asphalt',
+   rx:/(?:^|[,\s])огв(?:$|[,\s])|выс\.темп|аспо|нп\.ост|нп(?:$|[,\s])/i,
+   reco:'Усилить термообработку / РИЗ, пересмотреть дозировку ингибитора АСПО. Рассмотреть горячую промывку.'},
+  {key:'mode', label:'↓ Снижение режима', cls:'cause-mode',
+   rx:/ум\.ч\/к|ум\.шт|ум\.об|ум\.чк|сн\.шт|сн\.чрп/i,
+   reco:'Пересмотреть оптимизацию: подобрать СПМ/штока по балансу с притоком. Контроль динамограммы.'},
+  {key:'power', label:'⚡ Отключения э/э', cls:'cause-power',
+   rx:/откл[.\-]?эл|ост\.э\.э|план\.откл|ав\.откл|авар\.откл/i,
+   reco:'Эскалировать энергетикам: проверить кабельную линию, ячейку, ВЛ-10. Контроль перенапряжений.'},
+  {key:'collector', label:'🚧 Коллектор / сбор', cls:'cause-mech',
+   rx:/^колл$|колл\s|сб\.раб/i,
+   reco:'Промывка/продувка коллектора. Согласовать с операторами ДНС.'},
+  {key:'wo', label:'🔧 После ПКРС', cls:'cause-wo',
+   rx:/прс|пкрс|крс|опрс|пуск|в\/л\b/i,
+   reco:'Контроль вывода на режим: повторная ГДМ через 7–14 сут, проверка работы насоса по динамограмме.'},
+];
+
+function classifyCauses(evts, amHist, ajHist, pumpEff, lastWO) {
+  const txt = evts.join(' ');
+  const out = [];
+  for (const c of CAUSE_DEFS) {
+    if (c.rx.test(txt)) out.push(c);
+  }
+  // Water cut trend (AM history)
+  if (amHist.length >= 10) {
+    const recent = amHist.slice(-Math.min(15, amHist.length/3 | 0));
+    const earlier = amHist.slice(0, Math.min(15, amHist.length/3 | 0));
+    if (recent.length && earlier.length) {
+      const rAvg = recent.reduce((a,b)=>a+b,0)/recent.length;
+      const eAvg = earlier.reduce((a,b)=>a+b,0)/earlier.length;
+      if (rAvg - eAvg >= 8) {
+        out.push({key:'water', label:'💧 Рост обводнения', cls:'cause-water',
+          reco:`Обводнённость выросла на ${(rAvg-eAvg).toFixed(0)} пп. Рассмотреть РИГИС, РИР по нижним интервалам, пересмотр оптимизации по %.`});
+      }
+    }
+  }
+  // Ndin trend (AJ history) — увеличение глубины
+  if (ajHist.length >= 10) {
+    const recent = ajHist.slice(-Math.min(15, ajHist.length/3 | 0));
+    const earlier = ajHist.slice(0, Math.min(15, ajHist.length/3 | 0));
+    if (recent.length && earlier.length) {
+      const rAvg = recent.reduce((a,b)=>a+b,0)/recent.length;
+      const eAvg = earlier.reduce((a,b)=>a+b,0)/earlier.length;
+      if (rAvg - eAvg >= 30) {
+        out.push({key:'press', label:'🌊 Углубление Ндин', cls:'cause-press',
+          reco:`Ндин углубился на ${(rAvg-eAvg).toFixed(0)} м. Заявка на углубление насоса; пересмотр режима ППД соседних нагнетательных.`});
+      }
+    }
+  }
+  // Low pump efficiency
+  if (pumpEff !== null && pumpEff > 0 && pumpEff < 30) {
+    out.push({key:'pumpeff', label:`🔻 Низкая эфф. насоса (${pumpEff.toFixed(0)}%)`, cls:'cause-mech',
+      reco:'Снять динамограмму, проверить наличие газа, износ плунжера. Возможно — занижение Hдин или потеря герметичности.'});
+  }
+  // Dedup by key
+  const seen = new Set();
+  return out.filter(c => seen.has(c.key) ? false : (seen.add(c.key), true));
+}
+
+// ============ RENDERING ============
+function renderAll() { renderSummary(); renderDecline(); }
+
+let summaryMode = 'general'; // 'general' or 'byobj'
+let summaryObj = '12 ввг';
+let openYear = null;
+const chartsCache = {};
+
+function renderSummary() {
+  const c = $('summaryContent');
+  if (!state.summary) return;
+  const s = state.summary;
+  if (!s.dates.length) { c.innerHTML = '<div class="empty"><h2>Нет данных</h2></div>'; return; }
+
+  // Build yearly aggregations
+  const yearData = aggregateByYear(s.dates, s.series);
+  const currentObj = summaryMode === 'general' ? 'Общий' : summaryObj;
+  const yearAgg = yearData[currentObj] || {};
+  const years = Object.keys(yearAgg).sort();
+
+  let html = `
+    <div class="mode-toggle">
+      <button class="${summaryMode==='general'?'active':''}" data-mode="general">Общий</button>
+      <button class="${summaryMode==='byobj'?'active':''}" data-mode="byobj">По объектам</button>
+    </div>
+  `;
+  if (summaryMode === 'byobj') {
+    html += '<div class="obj-selector">';
+    OBJECTS.filter(o => o.name !== 'Общий').forEach(o => {
+      html += `<div class="obj-chip ${summaryObj===o.name?'active':''}" data-obj="${o.name}">${o.name}</div>`;
+    });
+    html += '</div>';
+  }
+
+  // Year cards
+  html += `<div class="section-title">По годам — ${currentObj} <span class="count">${years.length}</span></div>`;
+  html += '<div class="year-grid">';
+  let prev = null;
+  years.forEach(y => {
+    const a = yearAgg[y];
+    const trendQn = prev ? (a.qn - prev.qn) / prev.qn * 100 : null;
+    const trendWc = prev ? (a.wc - prev.wc) : null;
+    html += `
+      <div class="year-card ${openYear===y?'active':''}" data-year="${y}">
+        <div class="yr">${y}</div>
+        <div class="metrics">
+          <div><div class="m">Qж, м³/сут</div><div class="v">${fmt(a.qj,0)}</div></div>
+          <div><div class="m">Qн, т/сут</div><div class="v">${fmt(a.qn,0)} ${trendQn!==null?`<span class="trend ${trendQn>=0?'up':'dn'}">${trendQn>=0?'▲':'▼'}${Math.abs(trendQn).toFixed(1)}%</span>`:''}</div></div>
+          <div><div class="m">% обводн.</div><div class="v">${fmt(a.wc,1)} ${trendWc!==null?`<span class="trend ${trendWc<=0?'up':'dn'}">${trendWc<=0?'▼':'▲'}${Math.abs(trendWc).toFixed(1)}</span>`:''}</div></div>
+          <div><div class="m">Ндин, м</div><div class="v">${fmt(a.nd,0)}</div></div>
+        </div>
+      </div>`;
+    prev = a;
+  });
+  html += '</div>';
+
+  // Monthly detail if year open
+  if (openYear) {
+    html += renderMonthlyDetail(s, currentObj, openYear);
+  }
+
+  // Chart
+  html += `<div class="chart-box"><h3>Годовая динамика — ${currentObj}</h3><div class="chart-wrap"><canvas id="chartYears"></canvas></div></div>`;
+
+  // Recommendations
+  html += renderRecommendations(yearAgg, currentObj);
+
+  c.innerHTML = html;
+
+  // Bind handlers
+  c.querySelectorAll('.mode-toggle button').forEach(b => b.onclick = () => {
+    summaryMode = b.dataset.mode; openYear = null; renderSummary();
+  });
+  c.querySelectorAll('.obj-chip').forEach(b => b.onclick = () => {
+    summaryObj = b.dataset.obj; openYear = null; renderSummary();
+  });
+  c.querySelectorAll('.year-card').forEach(b => b.onclick = () => {
+    openYear = openYear === b.dataset.year ? null : b.dataset.year;
+    renderSummary();
+  });
+
+  // Draw chart
+  drawYearChart(yearAgg, years, currentObj);
+}
+
+function renderMonthlyDetail(s, objName, year) {
+  const monthAgg = aggregateByMonth(s.dates, s.series, objName, parseInt(year));
+  let html = `<div class="month-detail">
+    <h3>Месяц за месяцем · <span class="label">${year}</span></h3>
+    <table class="month-table">
+      <thead><tr><th>Месяц</th><th>Qж м³/с</th><th>Qн т/с</th><th>%</th><th>Ндин м</th><th>Δ Qн</th></tr></thead>
+      <tbody>`;
+  let prev = null;
+  for (let m = 1; m <= 12; m++) {
+    const a = monthAgg[m];
+    if (!a) continue;
+    const dQn = prev ? (a.qn - prev.qn) : null;
+    html += `<tr>
+      <td>${MONTHS_RU[m-1]}</td>
+      <td>${fmt(a.qj,0)}</td>
+      <td>${fmt(a.qn,0)}</td>
+      <td>${fmt(a.wc,1)}</td>
+      <td>${fmt(a.nd,0)}</td>
+      <td style="color:${dQn===null?'var(--muted)':dQn>=0?'var(--green)':'var(--red)'}">${dQn===null?'—':(dQn>=0?'+':'')+dQn.toFixed(0)}</td>
+    </tr>`;
+    prev = a;
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function aggregateByYear(dates, series) {
+  const out = {};
+  OBJECTS.forEach(o => {
+    out[o.name] = {};
+    const arr = series[o.name] || [];
+    for (let i = 0; i < dates.length; i++) {
+      const y = dates[i].getFullYear();
+      if (!out[o.name][y]) out[o.name][y] = {qj:[], qn:[], wc:[], nd:[]};
+      const v = arr[i];
+      if (v[0] !== null) out[o.name][y].qj.push(v[0]);
+      if (v[1] !== null) out[o.name][y].qn.push(v[1]);
+      if (v[2] !== null) out[o.name][y].wc.push(v[2]);
+      if (v[3] !== null) out[o.name][y].nd.push(v[3]);
+    }
+    Object.keys(out[o.name]).forEach(y => {
+      const d = out[o.name][y];
+      out[o.name][y] = {
+        qj: avg(d.qj), qn: avg(d.qn), wc: avg(d.wc), nd: avg(d.nd)
+      };
+    });
+  });
+  return out;
+}
+
+function aggregateByMonth(dates, series, objName, year) {
+  const out = {};
+  const arr = series[objName] || [];
+  for (let i = 0; i < dates.length; i++) {
+    if (dates[i].getFullYear() !== year) continue;
+    const m = dates[i].getMonth() + 1;
+    if (!out[m]) out[m] = {qj:[], qn:[], wc:[], nd:[]};
+    const v = arr[i];
+    if (v[0] !== null) out[m].qj.push(v[0]);
+    if (v[1] !== null) out[m].qn.push(v[1]);
+    if (v[2] !== null) out[m].wc.push(v[2]);
+    if (v[3] !== null) out[m].nd.push(v[3]);
+  }
+  Object.keys(out).forEach(m => {
+    const d = out[m];
+    out[m] = {qj: avg(d.qj), qn: avg(d.qn), wc: avg(d.wc), nd: avg(d.nd)};
+  });
+  return out;
+}
+
+function avg(a) { if (!a.length) return null; return a.reduce((x,y)=>x+y,0)/a.length; }
+function fmt(v, dec=1) { if (v === null || v === undefined || isNaN(v)) return '—'; return v.toLocaleString('ru-RU', {minimumFractionDigits:dec, maximumFractionDigits:dec}); }
+function fmtDate(d) { return d ? `${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}` : '—'; }
+
+function drawYearChart(yearAgg, years, objName) {
+  const cnv = $('chartYears');
+  if (!cnv) return;
+  if (chartsCache.years) chartsCache.years.destroy();
+  const labels = years;
+  const qj = years.map(y => yearAgg[y].qj);
+  const qn = years.map(y => yearAgg[y].qn);
+  const wc = years.map(y => yearAgg[y].wc);
+  chartsCache.years = new Chart(cnv, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Qн т/сут', data:qn, borderColor:'#3fb950', backgroundColor:'rgba(63,185,80,.15)', yAxisID:'y', tension:.25, fill:true},
+        {label:'Qж м³/сут', data:qj, borderColor:'#58a6ff', backgroundColor:'transparent', yAxisID:'y1', tension:.25},
+        {label:'% обв.', data:wc, borderColor:'#d29922', backgroundColor:'transparent', yAxisID:'y2', tension:.25, borderDash:[4,4]},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#e6edf3',font:{family:'Manrope'}}},
+        tooltip:{backgroundColor:'#21262d',titleColor:'#e6edf3',bodyColor:'#e6edf3',borderColor:'#30363d',borderWidth:1}
+      },
+      scales:{
+        x:{ticks:{color:'#7d8590'},grid:{color:'#21262d'}},
+        y:{position:'left',ticks:{color:'#3fb950'},grid:{color:'#21262d'},title:{display:true,text:'Qн т/сут',color:'#3fb950'}},
+        y1:{position:'right',ticks:{color:'#58a6ff'},grid:{display:false},title:{display:true,text:'Qж м³/сут',color:'#58a6ff'}},
+        y2:{position:'right',ticks:{color:'#d29922',display:false},grid:{display:false},min:0,max:100,display:false},
+      }
+    }
+  });
+}
+
+function renderRecommendations(yearAgg, objName) {
+  const years = Object.keys(yearAgg).sort();
+  if (years.length < 2) return '';
+  const latest = yearAgg[years[years.length-1]];
+  const prev = yearAgg[years[years.length-2]];
+  const five = years.length >= 5 ? yearAgg[years[years.length-5]] : null;
+  const recs = [];
+
+  // Q oil trend
+  const dQn = (latest.qn - prev.qn) / prev.qn * 100;
+  if (dQn < -3) recs.push(`Добыча нефти просела на <b>${Math.abs(dQn).toFixed(1)}%</b> г/г — необходим разбор по фонду; смотреть вкладку «Снижающие».`);
+  else if (dQn > 3) recs.push(`Добыча нефти выросла на <b>+${dQn.toFixed(1)}%</b> г/г — закрепить положительный тренд через сохранение режимов.`);
+  else recs.push(`Добыча нефти стабильна (${dQn>=0?'+':''}${dQn.toFixed(1)}% г/г).`);
+
+  // 5y trend
+  if (five && five.qn) {
+    const d5 = (latest.qn - five.qn) / five.qn * 100;
+    if (d5 < -10) recs.push(`За 5 лет нефть снизилась на <b>${Math.abs(d5).toFixed(0)}%</b> — долгосрочный тренд истощения по ${objName==='Общий'?'месторождению':objName}.`);
+  }
+
+  // Water cut
+  const dWc = latest.wc - prev.wc;
+  if (dWc > 1.5) recs.push(`Обводнённость выросла на <b>+${dWc.toFixed(1)} пп</b> до <b>${latest.wc.toFixed(1)}%</b> — рассмотреть РИГИС/РИР по высокообводнённым скважинам.`);
+  else if (dWc < -0.5) recs.push(`Обводнённость снизилась на ${Math.abs(dWc).toFixed(1)} пп — позитивно.`);
+
+  // Ndin
+  if (latest.nd && prev.nd) {
+    const dNd = latest.nd - prev.nd;
+    if (dNd > 8) recs.push(`Ндин углубился на <b>+${dNd.toFixed(0)} м</b> до <b>${latest.nd.toFixed(0)} м</b> — потеря пластового давления; пересмотр режима ППД.`);
+  }
+
+  // Qж vs Qн disparity
+  const dQj = (latest.qj - prev.qj) / prev.qj * 100;
+  if (dQj > 2 && dQn < 0) recs.push(`Жидкость растёт (+${dQj.toFixed(1)}%) при падении нефти — <b>обводнение в чистом виде</b>: качаем воду без прироста углеводородов.`);
+
+  if (!recs.length) recs.push('Динамика стабильна. Контрольные точки — ежемесячный мониторинг.');
+
+  return `<div class="reco-box"><h3>Рекомендации — ${objName}</h3><ul>${recs.map(r=>`<li>${r}</li>`).join('')}</ul></div>`;
+}
+
+// ============ DECLINE RENDERING ============
+let declineFilter = {obj:'all', sort:'lostOil', limit:100};
+let openWell = null;
+
+function renderDecline() {
+  const c = $('declineContent');
+  if (!state.decline) return;
+  let wells = [...state.decline.wells];
+
+  // Filter
+  if (declineFilter.obj !== 'all') {
+    wells = wells.filter(w => (w.horizon || w.obj || '').includes(declineFilter.obj));
+  }
+  // Sort
+  if (declineFilter.sort === 'lostOil') wells.sort((a,b) => b.lostOil - a.lostOil);
+  else if (declineFilter.sort === 'pctOfPeak') wells.sort((a,b) => a.pctOfPeak - b.pctOfPeak);
+  else if (declineFilter.sort === 'trend') wells.sort((a,b) => (a.trend ?? 999) - (b.trend ?? 999));
+
+  const top = wells.slice(0, declineFilter.limit);
+  const totalLostOil = top.reduce((s,w) => s + w.lostOil, 0);
+  const totalLostQj = top.reduce((s,w) => s + w.lostM3, 0);
+
+  // Build object filter
+  const objs = ['all', ...new Set(state.decline.wells.map(w => firstHorizon(w.horizon || w.obj)).filter(Boolean))].sort();
+
+  let html = `
+    <div class="controls-bar">
+      <label>Объект:</label>
+      <select id="filterObj">${objs.map(o => `<option value="${o}" ${declineFilter.obj===o?'selected':''}>${o==='all'?'Все':o}</option>`).join('')}</select>
+      <label>Сортировка:</label>
+      <select id="filterSort">
+        <option value="lostOil" ${declineFilter.sort==='lostOil'?'selected':''}>Потеря т/сут</option>
+        <option value="pctOfPeak" ${declineFilter.sort==='pctOfPeak'?'selected':''}>% от пика</option>
+        <option value="trend" ${declineFilter.sort==='trend'?'selected':''}>Свежий тренд</option>
+      </select>
+      <label>Топ:</label>
+      <select id="filterLimit">
+        <option value="50" ${declineFilter.limit==50?'selected':''}>50</option>
+        <option value="100" ${declineFilter.limit==100?'selected':''}>100</option>
+        <option value="200" ${declineFilter.limit==200?'selected':''}>200</option>
+        <option value="500" ${declineFilter.limit==500?'selected':''}>500</option>
+      </select>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="l">Скважин в выборке</div><div class="v">${top.length}</div></div>
+      <div class="stat-card"><div class="l">Σ Потеря жидк, м³/с</div><div class="v amber">${fmt(totalLostQj,0)}</div></div>
+      <div class="stat-card"><div class="l">Σ Потеря нефти, т/с</div><div class="v red">${fmt(totalLostOil,1)}</div></div>
+      <div class="stat-card"><div class="l">Σ Потеря нефти, т/год</div><div class="v red">${fmt(totalLostOil*365,0)}</div></div>
+    </div>
+
+    <div class="section-title">Топ снижающих <span class="count">${top.length}</span> · с начала 2026 года</div>
+  `;
+
+  top.forEach((w, idx) => {
+    html += renderWellCard(w, idx);
+  });
+
+  if (top.length === 0) html += '<div class="empty"><h2>Нет данных</h2><p>По выбранному фильтру скважин не найдено.</p></div>';
+
+  c.innerHTML = html;
+
+  $('filterObj').onchange = e => { declineFilter.obj = e.target.value; openWell = null; renderDecline(); };
+  $('filterSort').onchange = e => { declineFilter.sort = e.target.value; renderDecline(); };
+  $('filterLimit').onchange = e => { declineFilter.limit = parseInt(e.target.value); renderDecline(); };
+
+  c.querySelectorAll('.well-card').forEach(card => {
+    card.onclick = () => {
+      const w = card.dataset.well;
+      openWell = openWell === w ? null : w;
+      renderDecline();
+      if (openWell) {
+        setTimeout(() => drawWellChart(openWell), 30);
+      }
+    };
+  });
+}
+
+function firstHorizon(s) {
+  if (!s) return '';
+  return String(s).split(/[\s,]/)[0].trim();
+}
+
+function renderWellCard(w, idx) {
+  const isOpen = openWell === w.well + '-' + w.area;
+  const key = w.well + '-' + w.area;
+  const trendBadge = w.trend !== null && w.trend !== undefined
+    ? `<div class="s"><small>тренд</small><span class="${w.trend<0?'red':'green'}">${w.trend>=0?'+':''}${w.trend.toFixed(1)}</span></div>`
+    : '';
+  const causesHtml = w.causes.length
+    ? `<div class="causes">${w.causes.map(c => `<span class="cause ${c.cls}" title="${c.reco}">${c.label}</span>`).join('')}</div>`
+    : '<div class="causes"><span class="cause cause-other">🤷 Естественное падение / прочее</span></div>';
+
+  let expand = '';
+  if (isOpen) {
+    expand = `
+      <div class="well-expand">
+        <div class="expand-row">
+          <div class="expand-chart"><canvas id="chart-${key}"></canvas></div>
+          <div class="expand-info">
+            <dt>Статус</dt><dd>${w.status}</dd>
+            <dt>Горизонт</dt><dd>${w.horizon || '—'}</dd>
+            <dt>Ндин</dt><dd>${fmt(w.ndin,0)} м</dd>
+            <dt>Эфф. насоса</dt><dd>${w.pumpEff !== null ? fmt(w.pumpEff,0)+' %' : '—'}</dd>
+            <dt>Pek 2026 → текущ. (avg7)</dt><dd>${fmt(w.peak,1)} → ${fmt(w.currAvg,1)} м³/сут</dd>
+            <dt>% от пика</dt><dd>${fmt(w.pctOfPeak,1)} %</dd>
+          </div>
+        </div>
+        <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:6px">Последние события</div>
+          <div class="events-list">${w.events.length ? w.events.map(e => `<span>${escapeHtml(e)}</span>`).join('') : '<i>нет событий</i>'}</div>
+        </div>
+        ${w.causes.map(c => `<div class="reco-inline"><strong>${c.label}</strong>${c.reco}</div>`).join('')}
+        ${w.causes.length === 0 ? `<div class="reco-inline"><strong>Без явной причины в событиях</strong>Запланировать оптимизацию режима, провести ГДМ. Рассмотреть кандидатность на ГРП / доп. отбор по соседним скважинам.</div>` : ''}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="well-card ${isOpen?'open':''}" data-well="${key}">
+      <div class="well-head">
+        <div class="well-id">№${w.well}</div>
+        <div class="well-meta">
+          <span class="tag">${w.area}</span>
+          ${w.horizon ? `<span class="tag">${w.horizon}</span>` : ''}
+          <span>${w.status}</span>
+        </div>
+        <div class="well-stats">
+          <div class="s"><small>Pek 2026</small><span>${fmt(w.peak,0)}</span></div>
+          <div class="s"><small>текущ</small><span>${fmt(w.currAvg,0)}</span></div>
+          <div class="s"><small>% от пика</small><span class="${w.pctOfPeak<50?'red':''}">${fmt(w.pctOfPeak,0)}%</span></div>
+          <div class="s"><small>% обв</small><span>${fmt(w.wc,0)}%</span></div>
+          ${trendBadge}
+          <div class="s"><small>Потеря т/с</small><span class="red">${fmt(w.lostOil,1)}</span></div>
+        </div>
+      </div>
+      ${causesHtml}
+      ${expand}
+    </div>
+  `;
+}
+
+function drawWellChart(key) {
+  const w = state.decline.wells.find(x => x.well + '-' + x.area === key);
+  if (!w) return;
+  const cnv = document.getElementById('chart-' + key);
+  if (!cnv) return;
+  if (chartsCache[key]) chartsCache[key].destroy();
+  chartsCache[key] = new Chart(cnv, {
+    type:'line',
+    data:{
+      labels: w.qzSeries.map((_,i) => i+1),
+      datasets:[{
+        label:'Qж 2026, м³/сут',
+        data: w.qzSeries,
+        borderColor:'#58a6ff', backgroundColor:'rgba(88,166,255,.1)',
+        tension:.2, pointRadius:0, fill:true, borderWidth:2,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#21262d',borderColor:'#30363d',borderWidth:1}},
+      scales:{
+        x:{ticks:{color:'#7d8590',maxTicksLimit:8},grid:{color:'#21262d'}},
+        y:{ticks:{color:'#7d8590'},grid:{color:'#21262d'},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ CACHE ============
+function saveCache() {
+  try {
+    // Lightweight version — drop big arrays from decline.wells
+    const slim = {
+      summary: state.summary,
+      decline: state.decline ? {
+        wells: state.decline.wells.map(w => ({...w, qzSeries: w.qzSeries.slice(-180)}))
+      } : null,
+      meta: state.meta,
+    };
+    const str = JSON.stringify(slim, dateReplacer);
+    if (str.length < 4.5 * 1024 * 1024) {
+      localStorage.setItem('kbm-din-cache', str);
+    }
+  } catch (e) { console.warn('Cache save failed', e); }
+}
+
+function loadCache() {
+  try {
+    const str = localStorage.getItem('kbm-din-cache');
+    if (!str) return false;
+    const obj = JSON.parse(str, dateReviver);
+    if (obj.summary && obj.summary.dates) {
+      state.summary = obj.summary;
+      state.decline = obj.decline;
+      state.meta = obj.meta;
+      renderAll();
+      statusText.innerHTML = `<span class="ok">●</span> Из кэша: <span class="pill">${obj.meta?.fileName || '—'}</span> Скв: <span class="pill">${obj.decline?.wells?.length || 0}</span>`;
+      return true;
+    }
+  } catch (e) { console.warn('Cache load failed', e); }
+  return false;
+}
+
+function dateReplacer(k, v) {
+  if (v instanceof Date) return {__d: v.getTime()};
+  return v;
+}
+function dateReviver(k, v) {
+  if (v && typeof v === 'object' && v.__d !== undefined) return new Date(v.__d);
+  return v;
+}
+
+// ============ INIT ============
+loadCache();
+</script>
+
+</body>
+</html>
